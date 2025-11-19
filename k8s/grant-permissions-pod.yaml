@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grant-permissions-pod
+  namespace: jhub
+spec:
+  serviceAccountName: jupyter-user-sa
+  restartPolicy: Never
+  containers:
+  - name: psql-container
+    image: postgres:15
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        sleep 5
+        PGPASSWORD=temporarypassword123 psql -h 127.0.0.1 -p 5432 -U postgres -d jupyterhub_db <<'EOF'
+        GRANT ALL PRIVILEGES ON DATABASE jupyterhub_db TO "jupyter-user-sa@suman-110797.iam";
+        GRANT ALL PRIVILEGES ON SCHEMA public TO "jupyter-user-sa@suman-110797.iam";
+        GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "jupyter-user-sa@suman-110797.iam";
+        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "jupyter-user-sa@suman-110797.iam";
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO "jupyter-user-sa@suman-110797.iam";
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO "jupyter-user-sa@suman-110797.iam";
+        EOF
+  - name: cloud-sql-proxy
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.2
+    args:
+      - "--private-ip"
+      - "--structured-logs"
+      - "--port=5432"
+      - "suman-110797:us-central1:jupyterhub-db-instance"
+    securityContext:
+      runAsNonRoot: true
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"

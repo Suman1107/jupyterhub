@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-db-pod
+  namespace: jhub
+spec:
+  serviceAccountName: jupyter-user-sa
+  containers:
+  - name: test-container
+    image: python:3.9-slim
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        apt-get update && apt-get install -y curl
+        echo "Checking identity..."
+        curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
+        echo ""
+        pip install requests psycopg2-binary
+        sleep 5
+        python /scripts/test_db.py jupyter-user-sa@suman-110797.iam
+    volumeMounts:
+    - name: script-volume
+      mountPath: /scripts
+  - name: cloud-sql-proxy
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.2
+    args:
+      - "--private-ip"
+      - "--structured-logs"
+      - "--port=5432"
+      - "suman-110797:us-central1:jupyterhub-db-instance"
+      - "--auto-iam-authn"
+    securityContext:
+      runAsNonRoot: true
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+  volumes:
+  - name: script-volume
+    configMap:
+      name: test-db-script

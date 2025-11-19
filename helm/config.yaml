@@ -1,0 +1,102 @@
+# JupyterHub Helm Configuration
+
+proxy:
+  service:
+    type: ClusterIP
+  secretToken: "a6047d5c94246754c3154376e212306417857425185574251855742518557425"
+
+hub:
+  config:
+    Authenticator:
+      admin_users:
+        - admin
+      # Allow anyone to sign up and login immediately
+      open_signup: true
+      allowed_users: []
+    JupyterHub:
+      authenticator_class: nativeauthenticator.NativeAuthenticator
+
+singleuser:
+  # Service Account for Workload Identity
+  serviceAccountName: jupyter-user-sa
+  
+  # Enable GCS FUSE sidecar injection
+  extraAnnotations:
+    gke-gcsfuse/volumes: "true"
+  
+  # 1. Individual User PDs
+  storage:
+    type: dynamic
+    capacity: 10Gi
+    homeMountPath: /home/jovyan
+    dynamic:
+      storageClass: standard-rwo
+      pvcNameTemplate: claim-{username}{servername}
+      volumeNameTemplate: volume-{username}{servername}
+      storageAccessModes: [ReadWriteOnce]
+    
+  # 3. Shared GCS Bucket
+    extraVolumes:
+      - name: shared-data
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          volumeAttributes:
+            bucketName: suman-110797-jupyterhub-shared
+            mountOptions: "implicit-dirs"
+    extraVolumeMounts:
+      - name: shared-data
+        mountPath: /home/jovyan/shared
+        readOnly: false
+
+  extraContainers:
+    - name: cloud-sql-proxy
+      image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.2
+      args:
+        - "--private-ip"
+        - "--structured-logs"
+        - "--port=5432"
+        - "suman-110797:us-central1:jupyterhub-db-instance"
+        - "--auto-iam-authn"
+      securityContext:
+        runAsNonRoot: true
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "100m"
+
+  # 4. Security Best Practices
+  networkPolicy:
+    enabled: true
+    egress:
+      - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+      - ports:
+          - port: 80
+            protocol: TCP
+          - port: 443
+            protocol: TCP
+
+  cpu:
+    guarantee: 0.5
+    limit: 2
+  memory:
+    guarantee: 1G
+    limit: 4G
+  
+  cloudMetadata:
+    blockWithIptables: false
+
+scheduling:
+  userScheduler:
+    enabled: true
+  podPriority:
+    enabled: true
+
+prePuller:
+  hook:
+    enabled: true
+  continuous:
+    enabled: true

@@ -99,4 +99,4 @@ prePuller:
   hook:
     enabled: true
   continuous:
-    enabled: true
+    enabled: false  # Disabled to prevent CrashLoopBackOff with Cloud SQL Proxy image

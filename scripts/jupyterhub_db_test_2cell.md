@@ -1,36 +1,23 @@
-"""
-Test Database Connection from JupyterHub
-This script demonstrates connecting to Cloud SQL PostgreSQL using IAM authentication
-"""
+# JupyterHub Database Test - Two Cell Version
 
+## Cell 1: Install Dependencies
+Run this cell first and wait for it to complete:
+
+```python
 import subprocess
 import sys
-import importlib
 
-# Install required packages
-print("Installing required packages...")
-try:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "psycopg2-binary"])
-    print("✅ Packages installed successfully!")
-except Exception as e:
-    print(f"⚠️ Warning during installation: {e}")
+print("Installing psycopg2-binary...")
+subprocess.check_call([sys.executable, "-m", "pip", "install", "psycopg2-binary"])
+print("✅ Installation complete! Now run Cell 2.")
+```
 
-# Force reload of sys.path to pick up newly installed packages
-importlib.invalidate_caches()
+## Cell 2: Test Database Connection
+After Cell 1 completes, run this cell:
 
-# Now import the packages
-try:
-    import psycopg2
-    from datetime import datetime
-    print("✅ Modules imported successfully!")
-except ImportError as e:
-    print(f"❌ Error importing modules: {e}")
-    print("\nTrying alternative installation method...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "psycopg2-binary"])
-    # Try importing again
-    import psycopg2
-    from datetime import datetime
-    print("✅ Modules imported successfully after retry!")
+```python
+import psycopg2
+from datetime import datetime
 
 # Database configuration
 DB_HOST = "127.0.0.1"
@@ -46,7 +33,6 @@ def test_database_connection():
     
     try:
         # Connect to database
-        # Password is ignored when using Cloud SQL Proxy with --auto-iam-authn
         conn = psycopg2.connect(
             host=DB_HOST,
             port=DB_PORT,
@@ -99,7 +85,25 @@ def test_database_connection():
         
     except Exception as e:
         print(f"\n❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
-if __name__ == "__main__":
-    test_database_connection()
+# Run the test
+test_database_connection()
+```
+
+## Alternative: Single Cell with Kernel Restart
+
+If you prefer a single cell, use this (requires kernel restart):
+
+```python
+import subprocess
+import sys
+
+# Install package
+subprocess.check_call([sys.executable, "-m", "pip", "install", "psycopg2-binary"])
+
+# Restart kernel to pick up new package
+print("⚠️ Please restart the kernel (Kernel -> Restart) and then run the Cell 2 code above.")
+```

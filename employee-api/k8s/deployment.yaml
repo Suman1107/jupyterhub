@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: employee-api
+  namespace: jhub
+  labels:
+    app: employee-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: employee-api
+  template:
+    metadata:
+      labels:
+        app: employee-api
+    spec:
+      serviceAccountName: jupyter-user-sa
+      containers:
+      - name: api
+        image: gcr.io/suman-110797/employee-api:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DB_HOST
+          value: "127.0.0.1"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "jupyterhub_db"
+        - name: DB_USER
+          value: "jupyter-user-sa@suman-110797.iam"
+        - name: DB_PASSWORD
+          value: "ignored-by-proxy"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      # Cloud SQL Proxy sidecar
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.2
+        args:
+          - "--private-ip"
+          - "--structured-logs"
+          - "--port=5432"
+          - "suman-110797:us-central1:jupyterhub-db-instance"
+          - "--auto-iam-authn"
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: employee-api
+  namespace: jhub
+  labels:
+    app: employee-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: employee-api

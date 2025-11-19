@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: api-test-pod
+  namespace: jhub
+spec:
+  serviceAccountName: jupyter-user-sa
+  restartPolicy: Never
+  containers:
+  - name: test-container
+    image: python:3.11-slim
+    command: ["/bin/bash", "-c"]
+    args:
+      - |
+        # Install dependencies
+        pip install -q google-cloud-kms requests
+        
+        # Copy the library
+        cp /app/api_consumer.py /tmp/api_consumer.py
+        cd /tmp
+        
+        # Run the test
+        python3 << 'EOF'
+        import os
+        os.environ['GCP_PROJECT_ID'] = 'suman-110797'
+        
+        from api_consumer import SecureAPIClient
+        
+        # The encrypted token
+        token = "CiQAJKndERiJxxc7vkU6rKTiGGI0XQLWVVzHTBxT1hDVMIk/nfASywEAU2A72+3tdAgvA6za3kD/bVFHSUisXJlzY24ojPELNSfXI4jWPTGMbYxWpJr/tRhIpiyu48ME/AvKFaEpmiJIckBrSYwWD3v90SzAKoDouoS7FoOHzjffoCWDXR+aE0lKWlhDCTuBD2U7b1XK8Vig7l3j4JqQq61e5gtwJwjrT8MiINsB+cModr1sU1KXAeJ+qHcmaHtC36mkk9OztfDqKOLFScZh7AHAp4E94BsZvFHPNtLZ+lcvfNhsT+3KEy+jOx3XzjCseNbyvw=="
+        
+        print("=" * 60)
+        print("Testing KMS Token Decryption and API Access")
+        print("=" * 60)
+        
+        try:
+            # Create client (decrypts token)
+            print("\n1️⃣ Creating SecureAPIClient...")
+            client = SecureAPIClient(token)
+            
+            # Fetch employees
+            print("\n2️⃣ Fetching employees from API...")
+            employees = client.get_employees()
+            print(f"✅ Retrieved {len(employees)} employees")
+            
+            if not employees:
+                print("\n3️⃣ No employees found. Creating test employee...")
+                new_emp = client.create_employee({
+                    "first_name": "Alice",
+                    "last_name": "Johnson",
+                    "email": "alice.johnson@example.com",
+                    "department": "Data Science",
+                    "position": "Data Scientist",
+                    "salary": 95000
+                })
+                print(f"✅ Created: {new_emp['first_name']} {new_emp['last_name']}")
+                print(f"   Employee ID: {new_emp['employee_id']}")
+                
+                # Fetch again
+                employees = client.get_employees()
+                print(f"\n4️⃣ Now we have {len(employees)} employee(s)")
+            
+            # Display employees
+            print("\n📊 Employee List:")
+            for emp in employees:
+                print(f"  - ID: {emp.get('employee_id')}, Name: {emp.get('first_name')} {emp.get('last_name')}, Dept: {emp.get('department')}")
+            
+            print("\n" + "=" * 60)
+            print("✅ TEST PASSED! Complete flow working!")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"\n❌ TEST FAILED: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            exit(1)
+        EOF
+        
+        echo ""
+        echo "Test completed successfully!"
+    volumeMounts:
+    - name: api-consumer
+      mountPath: /app
+  volumes:
+  - name: api-consumer
+    configMap:
+      name: api-consumer-lib

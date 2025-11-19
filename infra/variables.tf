@@ -1,13 +1,22 @@
 variable "project_id" {
-  description = "The project ID to host the cluster in"
+  description = "GCP Project ID"
+  type        = string
+}
+
+variable "project_id_number" {
+  description = "GCP Project Number (for service account references)"
+  type        = string
+  default     = "255196298928"  # Update this for your project
 }
 
 variable "region" {
-  description = "The region to host the cluster in"
+  description = "GCP Region"
+  type        = string
   default     = "us-central1"
 }
 
 variable "cluster_name" {
-  description = "The name of the GKE cluster"
+  description = "GKE Cluster Name"
+  type        = string
   default     = "jupyterhub-cluster"
 }

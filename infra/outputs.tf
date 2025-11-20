@@ -45,3 +45,19 @@ output "jupyter_user_sa_email" {
   value       = google_service_account.jupyter_user_sa.email
   description = "The email of the Google Service Account for Jupyter users"
 }
+
+# Cloud SQL Proxy Outputs
+output "proxy_public_ip" {
+  description = "Public IP address of the Cloud SQL Proxy VM"
+  value       = google_compute_instance.proxy_vm.network_interface[0].access_config[0].nat_ip
+}
+
+output "proxy_connection_command" {
+  description = "Command to connect to the database via the proxy"
+  value       = "psql -h ${google_compute_instance.proxy_vm.network_interface[0].access_config[0].nat_ip} -p 5432 -U postgres_user -d jupyterhub_db"
+}
+
+output "dns_connection_address" {
+  description = "DNS address to connect to (requires domain ownership)"
+  value       = "db.${var.dns_domain}"
+}

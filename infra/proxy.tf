@@ -1,37 +1,20 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.0"
-    }
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
-
-locals {
-  connection_name = var.cloudsql_connection_name != "" ? var.cloudsql_connection_name : "${var.project_id}:${var.region}:${var.cloudsql_instance_name}"
-}
-
 # ------------------------------------------------------------------------------
-# Service Account
+# Cloud SQL Proxy Infrastructure
 # ------------------------------------------------------------------------------
 
+# Service Account for Proxy
 resource "google_service_account" "proxy_sa" {
-  account_id   = var.service_account_name
+  account_id   = "cloudsql-proxy"
   display_name = "Cloud SQL Proxy Service Account"
 }
 
-resource "google_project_iam_member" "client_role" {
+resource "google_project_iam_member" "proxy_client_role" {
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.proxy_sa.email}"
 }
 
-resource "google_project_iam_member" "instance_user_role" {
+resource "google_project_iam_member" "proxy_instance_user_role" {
   project = var.project_id
   role    = "roles/cloudsql.instanceUser"
   member  = "serviceAccount:${google_service_account.proxy_sa.email}"
@@ -42,36 +25,20 @@ resource "google_project_iam_member" "instance_user_role" {
 # ------------------------------------------------------------------------------
 
 # Static Public IP for the Proxy
-resource "google_compute_address" "static_ip" {
+resource "google_compute_address" "proxy_static_ip" {
   name = "cloudsql-proxy-ip"
 }
 
 # Public VPC for external access (NIC0)
-# We create a separate VPC for the public interface to keep it isolated
-resource "google_compute_network" "public_vpc" {
+resource "google_compute_network" "proxy_public_vpc" {
   name                    = "cloudsql-proxy-public-vpc"
   auto_create_subnetworks = true
 }
 
-# Data source for the existing Private VPC (NIC1)
-# This is where the Cloud SQL instance lives
-data "google_compute_network" "private_vpc" {
-  name = var.vpc_name
-}
-
-data "google_compute_subnetwork" "private_subnet" {
-  name   = var.subnet_name
-  region = var.region
-}
-
-# ------------------------------------------------------------------------------
 # Firewall Rules
-# ------------------------------------------------------------------------------
-
-# Allow PostgreSQL traffic from allowed IPs to the Proxy VM (Public NIC)
-resource "google_compute_firewall" "allow_postgres" {
+resource "google_compute_firewall" "allow_postgres_proxy" {
   name    = "allow-postgres-proxy"
-  network = google_compute_network.public_vpc.name
+  network = google_compute_network.proxy_public_vpc.name
 
   allow {
     protocol = "tcp"
@@ -82,11 +49,9 @@ resource "google_compute_firewall" "allow_postgres" {
   target_tags   = ["cloudsql-proxy"]
 }
 
-# Allow SSH traffic (Optional)
-resource "google_compute_firewall" "allow_ssh" {
-  count   = var.enable_ssh ? 1 : 0
+resource "google_compute_firewall" "allow_ssh_proxy" {
   name    = "allow-ssh-proxy"
-  network = google_compute_network.public_vpc.name
+  network = google_compute_network.proxy_public_vpc.name
 
   allow {
     protocol = "tcp"
@@ -102,31 +67,29 @@ resource "google_compute_firewall" "allow_ssh" {
 # ------------------------------------------------------------------------------
 
 resource "google_compute_instance" "proxy_vm" {
-  name         = var.proxy_vm_name
-  machine_type = var.machine_type
-  zone         = var.zone
+  name         = "cloudsql-proxy-vm"
+  machine_type = "e2-micro"
+  zone         = "${var.region}-a"
 
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-11"
-      size  = var.boot_disk_size_gb
+      size  = 10
     }
   }
 
   # NIC0: Public Network (Default Route)
-  # This interface receives traffic from the internet (your computer)
   network_interface {
-    network = google_compute_network.public_vpc.name
+    network = google_compute_network.proxy_public_vpc.name
     access_config {
-      nat_ip = google_compute_address.static_ip.address
+      nat_ip = google_compute_address.proxy_static_ip.address
     }
   }
 
   # NIC1: Private Network (Access to DB)
-  # This interface communicates with Cloud SQL via Private IP
   network_interface {
-    network    = data.google_compute_network.private_vpc.name
-    subnetwork = data.google_compute_subnetwork.private_subnet.name
+    network    = google_compute_network.vpc.name
+    subnetwork = google_compute_subnetwork.subnet.name
   }
 
   service_account {
@@ -134,20 +97,17 @@ resource "google_compute_instance" "proxy_vm" {
     scopes = ["cloud-platform"]
   }
 
-  # Startup script to install and run Cloud SQL Proxy
   metadata_startup_script = templatefile("${path.module}/startup-script.sh.tftpl", {
-    CONNECTION_NAME = local.connection_name
+    CONNECTION_NAME = google_sql_database_instance.instance.connection_name
   })
 
   tags = ["cloudsql-proxy"]
 }
 
 # ------------------------------------------------------------------------------
-# DNS (Optional)
+# DNS
 # ------------------------------------------------------------------------------
 
-# Create a DNS Zone (e.g., proxy.jupyterhub)
-# NOTE: For this to work publicly, you must own the domain and update nameservers.
 resource "google_dns_managed_zone" "proxy_zone" {
   name        = "jupyterhub-proxy-zone"
   dns_name    = "${var.dns_domain}."
@@ -155,7 +115,6 @@ resource "google_dns_managed_zone" "proxy_zone" {
   visibility  = "public"
 }
 
-# Create an A record pointing to the Proxy IP
 resource "google_dns_record_set" "proxy_record" {
   name         = "db.${google_dns_managed_zone.proxy_zone.dns_name}"
   managed_zone = google_dns_managed_zone.proxy_zone.name
@@ -169,10 +128,8 @@ resource "google_dns_record_set" "proxy_record" {
 # Database User (Automated Access)
 # ------------------------------------------------------------------------------
 
-# Create a dedicated user for external access so we don't need manual steps
 resource "google_sql_user" "proxy_user" {
   name     = "postgres_user"
-  instance = var.cloudsql_instance_name
+  instance = google_sql_database_instance.instance.name
   password = var.db_password
-  project  = var.project_id
 }

@@ -1,0 +1,16 @@
+project_id = "your-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# Existing Infrastructure Details
+vpc_name    = "your-vpc-name"
+subnet_name = "your-subnet-name"
+
+# Cloud SQL Details
+cloudsql_instance_name = "your-db-instance-name"
+
+# Security
+allowed_ips = ["YOUR_PUBLIC_IP/32"] 
+
+# DNS Configuration
+dns_domain = "your-domain.com"

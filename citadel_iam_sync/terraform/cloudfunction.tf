@@ -1,12 +1,11 @@
 # Zip the source code
-
 data "archive_file" "source" {
   type        = "zip"
   source_dir  = "${path.module}/../src"
   output_path = "/tmp/function-source.zip"
 }
 
-# Bucket to hold the zip (required for Gen2)
+# Bucket to hold the zip
 resource "google_storage_bucket" "source_bucket" {
   name                        = "${var.project_id}-gcf-source"
   location                    = var.region
@@ -37,7 +36,6 @@ resource "google_cloudfunctions_function" "sync_function" {
     EMPLOYEE_API_URL = var.employee_api_url
     TARGET_ROLES     = var.target_roles
     PROJECT_ID       = var.project_id
-    PRESERVE_EXTRAS  = var.preserve_extras
   }
 
   depends_on = [google_project_service.apis]

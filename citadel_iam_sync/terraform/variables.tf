@@ -26,9 +26,3 @@ variable "schedule_cron" {
   type        = string
   default     = "0 * * * *" # hourly
 }
-
-variable "preserve_extras" {
-  description = "If true, never remove user members not present in the API"
-  type        = bool
-  default     = false
-}

@@ -1,11 +1,12 @@
 # Terraform
-infra/.terraform/
-infra/.terraform.lock.hcl
-infra/terraform.tfstate
-infra/terraform.tfstate.backup
-infra/terraform.tfstate.*.backup
-infra/*.tfvars
-infra/.terraform.tfstate.lock.info
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfstate.*.backup
+**/*.tfvars
+**/.terraform.tfstate.lock.info
 
 # Helm
 helm/*.bak

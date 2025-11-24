@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Terraform
+terraform/
+*.tf
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Kubernetes
+k8s/
+*.yaml
+
+# CI/CD
+cloudbuild.yaml
+.github/
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# Testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/

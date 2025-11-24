@@ -1,12 +1,11 @@
 # Zip the source code
-
 data "archive_file" "source" {
   type        = "zip"
-  source_dir  = "${path.module}/../src"
+  source_dir  = "../src"
   output_path = "/tmp/function-source.zip"
 }
 
-# Bucket to hold the zip (required for Gen2)
+# Bucket to hold the zip
 resource "google_storage_bucket" "source_bucket" {
   name                        = "${var.project_id}-gcf-source"
   location                    = var.region
@@ -21,8 +20,8 @@ resource "google_storage_bucket_object" "zip" {
 
 # Cloud Function (Gen1)
 resource "google_cloudfunctions_function" "sync_function" {
-  name        = "citadel-iam-sync"
-  description = "Sync Employee API to GCP IAM (Citadel)"
+  name        = "google-group-sync"
+  description = "Sync Employee API to GCP IAM (Gen1)"
   runtime     = "python311"
 
   available_memory_mb   = 256
@@ -37,7 +36,6 @@ resource "google_cloudfunctions_function" "sync_function" {
     EMPLOYEE_API_URL = var.employee_api_url
     TARGET_ROLES     = var.target_roles
     PROJECT_ID       = var.project_id
-    PRESERVE_EXTRAS  = var.preserve_extras
   }
 
   depends_on = [google_project_service.apis]

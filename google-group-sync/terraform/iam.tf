@@ -1,6 +1,6 @@
 resource "google_service_account" "sync_sa" {
   account_id   = "group-sync-sa"
-  display_name = "Citadel IAM Sync Service Account"
+  display_name = "Google Group Sync Service Account"
   project      = var.project_id
 }
 

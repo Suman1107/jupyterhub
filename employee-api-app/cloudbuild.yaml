@@ -1,0 +1,177 @@
+# Cloud Build configuration for Employee API
+# This file defines the CI/CD pipeline
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    timeout: 600s
+
+  # Step 2: Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}'
+    waitFor: ['build-image']
+    timeout: 600s
+
+  # Step 3: Get GKE credentials
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - '${_CLUSTER_NAME}'
+      - '--zone=${_CLUSTER_ZONE}'
+      - '--project=${_PROJECT_ID}'
+    waitFor: ['push-image']
+
+  # Step 4: Deploy namespace (if not exists)
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-namespace'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/namespace.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['get-credentials']
+
+  # Step 5: Deploy PVC
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-pvc'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/pvc.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-namespace']
+
+  # Step 6: Update deployment with new image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-app'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/deployment.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-pvc']
+
+  # Step 7: Deploy service
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-service'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/service.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-app']
+
+  # Step 8: Deploy ingress
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-ingress'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/ingress.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-service']
+
+  # Step 9: Deploy HPA
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'deploy-hpa'
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/hpa.yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-ingress']
+
+  # Step 10: Restart deployment to use new image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'rollout-restart'
+    args:
+      - 'rollout'
+      - 'restart'
+      - 'deployment/${_IMAGE_NAME}'
+      - '-n'
+      - '${_NAMESPACE}'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-hpa']
+
+  # Step 11: Wait for rollout to complete
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'wait-rollout'
+    args:
+      - 'rollout'
+      - 'status'
+      - 'deployment/${_IMAGE_NAME}'
+      - '-n'
+      - '${_NAMESPACE}'
+      - '--timeout=5m'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['rollout-restart']
+
+  # Step 12: Get deployment status
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'get-status'
+    args:
+      - 'get'
+      - 'all'
+      - '-n'
+      - '${_NAMESPACE}'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['wait-rollout']
+
+# Substitutions (default values, can be overridden)
+substitutions:
+  _PROJECT_ID: 'suman-110797'
+  _REGION: 'us-central1'
+  _REPO_NAME: 'employee-api'
+  _IMAGE_NAME: 'employee-api'
+  _IMAGE_TAG: 'latest'
+  _CLUSTER_NAME: 'jupyterhub-cluster'
+  _CLUSTER_ZONE: 'us-central1-a'
+  _NAMESPACE: 'employee-api'
+
+# Build options
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  
+# Timeout for entire build
+timeout: 1800s
+
+# Images to be pushed (for Cloud Build history)
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:latest'

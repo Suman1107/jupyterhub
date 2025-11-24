@@ -10,7 +10,7 @@ variable "region" {
 }
 
 variable "employee_api_url" {
-  description = "URL of the Employee API"
+  description = "URL of the Employee API (Component 2)"
   type        = string
 }
 
@@ -24,11 +24,5 @@ variable "target_roles" {
 variable "schedule_cron" {
   description = "Cron schedule for the sync job"
   type        = string
-  default     = "0 * * * *" # hourly
-}
-
-variable "preserve_extras" {
-  description = "If true, never remove user members not present in the API"
-  type        = bool
-  default     = false
+  default     = "0 * * * *" # Hourly
 }

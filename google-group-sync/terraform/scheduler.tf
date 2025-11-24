@@ -1,10 +1,10 @@
 resource "google_cloud_scheduler_job" "sync_job" {
-  name        = "citadel-iam-sync-job"
-  description = "Triggers the Citadel IAM Sync Cloud Function hourly"
-  schedule    = var.schedule_cron
-  time_zone   = "UTC"
+  name             = "group-sync-job"
+  description      = "Triggers the Google Group Sync Cloud Function hourly"
+  schedule         = var.schedule_cron
+  time_zone        = "UTC"
   attempt_deadline = "320s"
-  region      = var.region
+  region           = var.region
 
   http_target {
     http_method = "POST"
@@ -15,5 +15,7 @@ resource "google_cloud_scheduler_job" "sync_job" {
     }
   }
 
-  depends_on = [google_cloudfunctions_function.sync_function]
+  depends_on = [
+    google_cloudfunctions_function.sync_function
+  ]
 }

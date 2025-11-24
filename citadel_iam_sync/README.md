@@ -49,12 +49,10 @@ citadel_iam_sync/
    git clone <repo‑url>   # or copy the directory manually
    cd citadel_iam_sync
    ```
-
 2. **Initialize Terraform** (only needed once).
    ```bash
    terraform init
    ```
-
 3. **Create a `terraform.tfvars` file** (or pass variables on the CLI) with your project‑specific values:
    ```hcl
    project_id        = "my-gcp-project"
@@ -62,7 +60,6 @@ citadel_iam_sync/
    target_roles      = "roles/viewer,roles/storage.objectViewer,roles/compute.osLogin"
    schedule_cron     = "0 * * * *"   # hourly – adjust as needed
    ```
-
 4. **Apply the Terraform configuration**.
    ```bash
    terraform apply -auto-approve
@@ -72,7 +69,6 @@ citadel_iam_sync/
    - Package `src/main.py` into a zip and upload it to a bucket.
    - Deploy the Cloud Function (`citadel-iam-sync`).
    - Create a Cloud Scheduler job that POSTs to the function on the schedule.
-
 5. **Verify the deployment**.
    - Check the function URL:
      ```bash
@@ -89,8 +85,23 @@ citadel_iam_sync/
        --format="table(bindings.role, bindings.members)" \
        --filter="bindings.role:roles/*"
      ```
-
 6. **Update the employee list** – The function reads the API each run, so any change in the API is reflected automatically on the next scheduler execution.
+
+---
+
+## How addition & removal are handled
+The Cloud Function works role‑by‑role:
+
+1. **Fetch the employee list** from the API. Each employee can optionally include a `roles` array. If omitted, the function applies the **default roles** defined in the `TARGET_ROLES` environment variable.
+2. **Build a mapping** of `role → set(user:email)` based on the API response.
+3. For **each role** the function:
+   - Retrieves the current IAM policy for the project.
+   - Determines the current set of `user:` members bound to that role.
+   - **Addition**: any user present in the API mapping but **not** in the current IAM binding is added.
+   - **Removal**: any user present in the current IAM binding but **not** in the API mapping is removed **unless** the `PRESERVE_EXTRAS` flag is set to `true`. When `PRESERVE_EXTRAS=true` the function will only add missing members and never delete existing ones.
+4. The updated binding list (preserving any non‑user members such as service accounts or groups) is written back with a single atomic `setIamPolicy` call.
+
+This design ensures the IAM state is always a **source‑of‑truth sync** with the Employee API, while still giving you the option to keep manually added members if desired.
 
 ---
 
@@ -98,6 +109,7 @@ citadel_iam_sync/
 - **Add/remove roles** – modify `target_roles` (comma‑separated) and re‑apply.
 - **Change schedule** – edit `schedule_cron` (cron syntax) and re‑apply.
 - **Filtering** – The function already filters out any email ending with `@example.com`. Adjust the filter in `src/main.py` if you need different validation.
+- **Preserve extra bindings** – Set the environment variable `PRESERVE_EXTRAS=true` in `cloudfunction.tf` to stop the function from removing any user members that are not present in the API.
 
 ---
 

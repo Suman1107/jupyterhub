@@ -26,3 +26,15 @@ variable "schedule_cron" {
   type        = string
   default     = "0 * * * *" # Hourly
 }
+
+variable "oauth_client_id" {
+  description = "OAuth2 client ID for Employee API authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "oauth_client_secret" {
+  description = "OAuth2 client secret for Employee API authentication"
+  type        = string
+  sensitive   = true
+}

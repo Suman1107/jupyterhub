@@ -8,6 +8,11 @@ resource "google_secret_manager_secret" "client_id" {
   }
 }
 
+resource "google_secret_manager_secret_version" "client_id_version" {
+  secret      = google_secret_manager_secret.client_id.id
+  secret_data = var.oauth_client_id
+}
+
 resource "google_secret_manager_secret" "client_secret" {
   secret_id = "employee-api-client-secret"
   
@@ -16,6 +21,7 @@ resource "google_secret_manager_secret" "client_secret" {
   }
 }
 
-# Note: You need to manually add the secret versions using:
-# gcloud secrets versions add employee-api-client-id --data-file=- <<< "your-client-id"
-# gcloud secrets versions add employee-api-client-secret --data-file=- <<< "your-client-secret"
+resource "google_secret_manager_secret_version" "client_secret_version" {
+  secret      = google_secret_manager_secret.client_secret.id
+  secret_data = var.oauth_client_secret
+}

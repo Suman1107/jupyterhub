@@ -10,7 +10,7 @@ variable "region" {
 }
 
 variable "employee_api_url" {
-  description = "URL of the Employee API"
+  description = "URL of the Employee API (Component 2)"
   type        = string
 }
 
@@ -24,5 +24,17 @@ variable "target_roles" {
 variable "schedule_cron" {
   description = "Cron schedule for the sync job"
   type        = string
-  default     = "0 * * * *" # hourly
+  default     = "0 * * * *" # Hourly
+}
+
+variable "oauth_client_id" {
+  description = "OAuth2 client ID for Employee API authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "oauth_client_secret" {
+  description = "OAuth2 client secret for Employee API authentication"
+  type        = string
+  sensitive   = true
 }

@@ -3,17 +3,55 @@ import json
 import requests
 import google.auth
 from googleapiclient.discovery import build
+from google.cloud import secretmanager
 
 # Configuration (environment variables)
 API_ENDPOINT   = os.getenv("EMPLOYEE_API_URL")
 TARGET_ROLES   = os.getenv("TARGET_ROLES", "roles/viewer")  # comma‑separated list of IAM roles
 PROJECT_ID     = os.getenv("PROJECT_ID")
 
+# Secret Manager client
+secret_client = secretmanager.SecretManagerServiceClient()
+
+
+def get_secret(secret_id: str, version: str = "latest") -> str:
+    """Retrieve a secret from Google Cloud Secret Manager."""
+    name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/{version}"
+    response = secret_client.access_secret_version(request={"name": name})
+    return response.payload.data.decode("UTF-8")
+
+
+def get_oauth_token() -> str:
+    """Generate OAuth2 token using client credentials from Secret Manager."""
+    try:
+        client_id = get_secret("employee-api-client-id")
+        client_secret = get_secret("employee-api-client-secret")
+        
+        # Request token from Employee API
+        token_url = f"{API_ENDPOINT}/api/token"
+        response = requests.post(
+            token_url,
+            json={"client_id": client_id, "client_secret": client_secret},
+            timeout=10
+        )
+        response.raise_for_status()
+        token_data = response.json()
+        return token_data["access_token"]
+    except Exception as e:
+        print(f"Error getting OAuth token: {str(e)}")
+        raise
+
+
 def fetch_employees_from_api():
     """Fetch employee list from the Employee API and return a set of IAM‑compatible members.
     Example return: {"user:alice@example.com", "user:bob@example.com"}
     """
-    resp = requests.get(f"{API_ENDPOINT}/api/employees", timeout=10)
+    # Get OAuth2 token
+    token = get_oauth_token()
+    
+    # Make authenticated request
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(f"{API_ENDPOINT}/api/employees", headers=headers, timeout=10)
     resp.raise_for_status()
     data = resp.json()
     # Filter out any placeholder/example addresses – only real Google accounts are allowed

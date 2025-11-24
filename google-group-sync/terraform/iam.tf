@@ -17,3 +17,9 @@ resource "google_cloudfunctions_function_iam_member" "invoker" {
   role           = "roles/cloudfunctions.invoker"
   member         = "serviceAccount:${google_service_account.sync_sa.email}"
 }
+
+resource "google_project_iam_member" "sa_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.sync_sa.email}"
+}

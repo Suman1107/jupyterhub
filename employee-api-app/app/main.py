@@ -21,6 +21,25 @@ from models import (
     EmployeeCreatedResponse,
     HealthResponse
 )
+from auth import (
+    create_access_token,
+    verify_client_credentials,
+    get_current_user,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from datetime import timedelta
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenRequest(BaseModel):
+    client_id: str
+    client_secret: str
 
 # Configure logging
 logging.basicConfig(
@@ -79,9 +98,32 @@ async def health_check():
     )
 
 
+@app.post("/api/token", response_model=Token, tags=["Authentication"])
+async def login(token_request: TokenRequest):
+    """OAuth2 token endpoint using client credentials flow."""
+    if not verify_client_credentials(token_request.client_id, token_request.client_secret):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid client credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": token_request.client_id},
+        expires_delta=access_token_expires
+    )
+    
+    logger.info(f"Token generated for client: {token_request.client_id}")
+    return Token(access_token=access_token, token_type="bearer")
+
+
 @app.get("/api/employees", response_model=EmployeeListResponse, tags=["Employees"])
-async def get_employees(db: AsyncSession = Depends(get_db)):
-    """Get list of all employees."""
+async def get_employees(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get list of all employees (requires authentication)."""
     try:
         result = await db.execute(select(Employee).order_by(Employee.created_at.desc()))
         employees = result.scalars().all()
@@ -106,9 +148,10 @@ async def get_employees(db: AsyncSession = Depends(get_db)):
 )
 async def create_employee(
     employee: EmployeeCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    """Add or update an employee."""
+    """Add or update an employee (requires authentication)."""
     try:
         # Check if employee exists
         result = await db.execute(
@@ -153,8 +196,12 @@ async def create_employee(
 
 
 @app.delete("/api/employees/{email}", response_model=MessageResponse, tags=["Employees"])
-async def delete_employee(email: str, db: AsyncSession = Depends(get_db)):
-    """Remove an employee by email."""
+async def delete_employee(
+    email: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove an employee by email (requires authentication)."""
     try:
         # Check if employee exists
         result = await db.execute(

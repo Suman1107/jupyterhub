@@ -20,8 +20,10 @@ resource "google_project_service" "apis" {
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudscheduler.googleapis.com",
-    "iamcredentials.googleapis.com",
-    "cloudresourcemanager.googleapis.com"
+    "iamcredentials.googleapis.com", # Critical for Keyless DWD
+    "admin.googleapis.com",          # For Admin SDK (Legacy)
+    "cloudidentity.googleapis.com",  # For Cloud Identity Groups (Modern)
+    "secretmanager.googleapis.com"   # For OAuth2 credentials
   ])
 
   project = var.project_id
